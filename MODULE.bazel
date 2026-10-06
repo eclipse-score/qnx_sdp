@@ -1,0 +1,26 @@
+# *******************************************************************************
+# Copyright (c) 2026 Contributors to the Eclipse Foundation
+#
+# See the NOTICE file(s) distributed with this work for additional
+# information regarding copyright ownership.
+#
+# This program and the accompanying materials are made available under the
+# terms of the Apache License Version 2.0 which is available at
+# https://www.apache.org/licenses/LICENSE-2.0
+#
+# SPDX-License-Identifier: Apache-2.0
+# *******************************************************************************
+module(name = "score_qnx_sdp")
+
+# *******************************************************************************
+# Basic dependencies
+# *******************************************************************************
+bazel_dep(name = "rules_pkg", version = "1.2.0")
+
+qnx_softwarecentercli = use_repo_rule("@score_qnx_sdp//rules:qnx_softwarecentercli.bzl", "qnx_softwarecentercli")
+
+qnx_softwarecentercli(
+    name = "qnx_softwarecentercli",
+    sha256 = "5695a0ec8a1fd91840753b2cba86a9325f6052d4f69c757166cc61b09bcbe507",
+    url = "https://www.qnx.com/download/download/79441/qnx-setup-2.0.4-202501021438-linux.run",
+)
