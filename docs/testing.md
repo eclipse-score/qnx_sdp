@@ -47,12 +47,12 @@ Work from the `tests/` directory:
 
 ```sh
 cd tests
-export MYQNX_USER=<user>
-export MYQNX_PASSWORD=<password>
 
-bazel build //:qnx_sdp --action_env=MYQNX_USER --action_env=MYQNX_PASSWORD
-bazel build //:qnx_sdp_pkg --action_env=MYQNX_USER --action_env=MYQNX_PASSWORD
+bazel build //:qnx_sdp
+bazel build //:qnx_sdp_pkg
 ```
+
+The credentials are read from `~/.netrc` (machine `qnx.com`). To use environment variables instead, export `MYQNX_USER` and `MYQNX_PASSWORD` and add `--action_env=MYQNX_USER --action_env=MYQNX_PASSWORD`.
 
 Results:
 

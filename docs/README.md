@@ -47,10 +47,12 @@ qnx_sdp(
 )
 ```
 
+Add your myQNX credentials to `~/.netrc` (`machine qnx.com`, `login`, `password`), then build:
+
 ```sh
-export MYQNX_USER=<myQNX user>
-export MYQNX_PASSWORD=<myQNX password>
-bazel build //:qnx_sdp --action_env=MYQNX_USER --action_env=MYQNX_PASSWORD
+bazel build //:qnx_sdp
 ```
+
+Alternatively, pass `MYQNX_USER` and `MYQNX_PASSWORD` with `--action_env`. See [getting-started.md](getting-started.md#build-time-credentials-qnx_sdp).
 
 See [getting-started.md](getting-started.md) for the full setup.

@@ -13,3 +13,4 @@
 
 # Bazel related files
 bazel-*
+.vscode

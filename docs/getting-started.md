@@ -70,12 +70,28 @@ Two separate mechanisms exist, and they use different variable names.
 
 | Purpose | Used by | Source |
 | --- | --- | --- |
-| Run `qnxsoftwarecenter_clt` to import and install the patchset | `qnx_sdp` rule | Environment variables `MYQNX_USER` and `MYQNX_PASSWORD`, forwarded with `--action_env` |
+| Run `qnxsoftwarecenter_clt` to import and install the patchset | `qnx_sdp` rule, through the [wrapper](reference.md#qnx-software-center-wrapper) | `~/.netrc` entry for machine `qnx.com`, or the variables `MYQNX_USER` and `MYQNX_PASSWORD` forwarded with `--action_env` |
 | Authenticate Bazel downloads from `qnx.com` | `tools/qnx_credential_helper.py` | `SCORE_QNX_USER` and `SCORE_QNX_PASSWORD`, or `~/.netrc` entry for machine `qnx.com` |
 
 ### Build-time credentials (`qnx_sdp`)
 
-The rule reads `MYQNX_USER` and `MYQNX_PASSWORD` from the action environment. Pass them through without writing the values on the command line:
+The rule does not call `qnxsoftwarecenter_clt` directly. It runs the [wrapper](reference.md#qnx-software-center-wrapper), which supplies the credentials to the CLI. There are two ways to provide them.
+
+**Recommended: `~/.netrc`.** Add an entry for machine `qnx.com` and restrict the file with `chmod 600`:
+
+```
+machine qnx.com
+login <user>
+password <password>
+```
+
+Then build without any credential flags. The credentials never appear in the Bazel action command line:
+
+```sh
+bazel build //:qnx_sdp
+```
+
+**Alternative: environment variables.** If both `MYQNX_USER` and `MYQNX_PASSWORD` are forwarded to the action environment, the rule passes them to the wrapper as `-u` and `-p`. This puts the password in the action command line, so prefer `.netrc` where possible:
 
 ```sh
 export MYQNX_USER=<user>
@@ -83,7 +99,7 @@ export MYQNX_PASSWORD=<password>
 bazel build //:qnx_sdp --action_env=MYQNX_USER --action_env=MYQNX_PASSWORD
 ```
 
-If either variable is missing from the action environment, analysis fails with a missing-key error from `default_shell_env`.
+Set both variables or neither. If only one is set, the wrapper fails with `--user and --password must be given together`. If neither the variables nor a `.netrc` entry exist, it fails with `No myQNX credentials`.
 
 To avoid retyping the flags, put them in a user-level `~/.bazelrc` or an untracked `user.bazelrc`:
 

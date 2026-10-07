@@ -16,7 +16,11 @@ module(name = "score_qnx_sdp")
 # Basic dependencies
 # *******************************************************************************
 bazel_dep(name = "rules_pkg", version = "1.2.0")
+bazel_dep(name = "rules_python", version = "2.5.0")
 
+# *******************************************************************************
+# QNX Software Center CLI
+# *******************************************************************************
 qnx_softwarecentercli = use_repo_rule("@score_qnx_sdp//rules:qnx_softwarecentercli.bzl", "qnx_softwarecentercli")
 
 qnx_softwarecentercli(

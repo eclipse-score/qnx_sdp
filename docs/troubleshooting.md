@@ -17,7 +17,10 @@
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| Analysis error about key `MYQNX_USER` or `MYQNX_PASSWORD` | Variables not forwarded to Bazel's action environment | Export both variables and pass `--action_env=MYQNX_USER --action_env=MYQNX_PASSWORD`. |
+| `qnx_software_center_wrapper: No myQNX credentials: ...` | No `MYQNX_*` variables passed with `--action_env`, and no complete `machine qnx.com` entry in `~/.netrc` | Add the `.netrc` entry, or export both variables and pass `--action_env=MYQNX_USER --action_env=MYQNX_PASSWORD`. |
+| `--user and --password must be given together` | Only one of `MYQNX_USER` and `MYQNX_PASSWORD` was forwarded | Set both, or neither (and use `.netrc`). |
+| `qnx_software_center_wrapper: failed to run ...` | The installer path is wrong or not executable | Check the `@qnx_softwarecentercli` repository was fetched correctly. See [Forcing a refetch](#forcing-a-refetch). |
+| `qnxsoftwarecenter: not found` from the action | The CLI's runfiles are missing from the action inputs | Make sure the rule passes the installer's default runfiles as `tools`. |
 | Analysis error about `patchset` being `None` | `patchset` attribute not set | Set `patchset` on the `qnx_sdp` target. |
 | `Failed to extract QNX Software Center: ...` during fetch | Installer exited non-zero | Read the printed stdout and stderr. Check disk space, that the file is a Linux `.run` installer, and that it can run on the host. |
 | Checksum mismatch on download | Wrong `sha256`, or the download returned an HTML login page | Verify `sha256` against the file. If the page requires login, configure the credential helper. |
@@ -41,7 +44,9 @@ Use `--expunge` only if you accept re-downloading everything in the output base.
 
 ## Security notes
 
-- The `qnx_sdp` rule passes the myQNX password as the command-line argument `-myqnx.password`. It can therefore be seen in the process list on the build host, and it is part of the action's command line. Avoid remote caches or execution services that record action command lines, and treat build logs from `--subcommands` or `--verbose_failures` as sensitive.
+- With credentials in `~/.netrc`, the password is not part of the Bazel action command line, so it does not appear in `--subcommands` output, build logs or remote execution records. The `.netrc` file is read outside Bazel's inputs, so changing it does not invalidate cached results.
+- The wrapper passes `-myqnx.password` to `qnxsoftwarecenter_clt` as an argument, so the password can still be seen in the process list on the build host while the CLI runs.
+- If you use `MYQNX_USER` and `MYQNX_PASSWORD` with `--action_env`, the rule passes them to the wrapper as `-u` and `-p`, so the password is part of the action command line. Avoid remote caches or execution services that record action command lines, and treat build logs from `--subcommands` or `--verbose_failures` as sensitive.
 - The installer is run with `agree-to-license-terms`. Make sure the people running the build are entitled to accept the QNX license terms.
 - The credential helper only sends credentials to `https://*.qnx.com` hosts. Keep that check when modifying it.
 - Do not commit credentials, `.netrc`, or `user.bazelrc` files that contain them.

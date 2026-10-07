@@ -77,30 +77,37 @@ Runs at repository-fetch time, once per Bazel output base (and again when the ru
 
 ### 3. Rule: `qnx_sdp` ([rules/qnx_sdp.bzl](../rules/qnx_sdp.bzl))
 
-Declares a directory output (a tree artifact) named after the target, and runs one action that invokes the QNX Software Center CLI:
+Declares a directory output (a tree artifact) named after the target, and runs one action. The action runs the [wrapper](#4-wrapper-toolsqnx_software_center_wrapperpy), which in turn invokes the QNX Software Center CLI:
 
 ```
-qnxsoftwarecenter_clt \
+qnx_software_center_wrapper \
+    --installer <qnxsoftwarecenter_clt> \
+    [-u <MYQNX_USER> -p <MYQNX_PASSWORD>] \
+    -- \
+    [-cleanInstall] \
     -mirrorBaseline <baseline> \
-    -myqnx.user <MYQNX_USER> \
-    -myqnx.password <MYQNX_PASSWORD> \
+    [-proxy.host <proxy_host> -proxy.port <proxy_port>] \
     -importAndInstall <patchset> \
     -destination <output directory>
 ```
 
 - `baseline` defaults to `qnx800`.
 - `patchset` is the single input file.
-- The credentials are read from `ctx.configuration.default_shell_env`, which contains the variables passed through `--action_env`.
-- The installer is an implicit attribute (`_installer`) pointing at `@qnx_softwarecentercli//:installer`, built for the `exec` configuration. Its runfiles are passed as the action's `tools`.
+- `-u` and `-p` are added only if `MYQNX_USER` and `MYQNX_PASSWORD` are in `ctx.configuration.default_shell_env`, which contains the variables passed through `--action_env`. Otherwise the wrapper reads `~/.netrc`.
+- The wrapper (`_wrapper`, `//tools:qnx_software_center_wrapper`) and the installer (`_installer`, `@qnx_softwarecentercli//:installer`) are implicit attributes, built for the `exec` configuration. Both are passed as the action's `tools`, together with the installer's runfiles.
 - The rule returns `DefaultInfo(files = depset([<output directory>]))`.
 
-### 4. Credential helper ([tools/qnx_credential_helper.py](../tools/qnx_credential_helper.py))
+### 4. Wrapper ([tools/qnx_software_center_wrapper.py](../tools/qnx_software_center_wrapper.py))
+
+A standalone Python script, exposed as the `py_binary` `//tools:qnx_software_center_wrapper`. It resolves the myQNX credentials (command line, otherwise `~/.netrc`) and replaces itself with `qnxsoftwarecenter_clt -myqnx.user ... -myqnx.password ... <arguments>`. Its purpose is to keep the credentials out of the Bazel action command line. Details are in [reference.md](reference.md#qnx-software-center-wrapper).
+
+### 5. Credential helper ([tools/qnx_credential_helper.py](../tools/qnx_credential_helper.py))
 
 A standalone script implementing the [Bazel credential helper protocol](https://github.com/bazelbuild/proposals/blob/main/designs/2022-06-07-bazel-credential-helpers.md). It lets Bazel authenticate downloads from `qnx.com`. Details are in [reference.md](reference.md#credential-helper).
 
 The helper is exported from [tools/BUILD.bazel](../tools/BUILD.bazel) via `exports_files`, but nothing in the repository configures Bazel to use it. See [getting-started.md](getting-started.md#authenticated-downloads-credential-helper).
 
-### 5. Registry configuration ([.bazelrc](../.bazelrc))
+### 6. Registry configuration ([.bazelrc](../.bazelrc))
 
 ```
 common --registry=https://raw.githubusercontent.com/eclipse-score/bazel_registry/main/
@@ -120,7 +127,8 @@ flowchart TD
     E --> F[Generate BUILD.bazel with :installer]
     C -- yes --> G
     F --> G[qnx_sdp action]
-    G --> H["qnxsoftwarecenter_clt -mirrorBaseline ... -importAndInstall patchset -destination out"]
+    G --> W[Wrapper resolves credentials: -u/-p or ~/.netrc]
+    W --> H["qnxsoftwarecenter_clt -mirrorBaseline ... -importAndInstall patchset -destination out"]
     H --> I[Tree artifact: SDP directory]
     I --> J[pkg_tar: qnx_sdp_pkg.tar]
 ```
@@ -133,4 +141,4 @@ flowchart TD
 
 - The installer version is pinned by URL and checksum, so the fetch is reproducible for a given installer. The SDP content is not hermetic: it depends on what QNX serves for the baseline and patchset at build time.
 - The patchset (a `.plist` file) selects what is installed. It is a plain input file, so changing it invalidates the action.
-- Credentials are not rule attributes. They come from the environment, so they are not written to any `BUILD` file. See [troubleshooting.md](troubleshooting.md#security-notes) for the caveats.
+- Credentials are not rule attributes. They come from `~/.netrc` or the environment, so they are not written to any `BUILD` file. See [troubleshooting.md](troubleshooting.md#security-notes) for the caveats.
