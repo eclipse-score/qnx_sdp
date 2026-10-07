@@ -50,7 +50,7 @@ package(default_visibility = ["//visibility:public"])
 filegroup(
     name = "installer",
     srcs = ["qnxsoftwarecenter/qnxsoftwarecenter_clt"],
-    data = glob(["**"]),
+    data = glob(["qnxsoftwarecenter/**"]),
 )
 """,
     )
