@@ -38,8 +38,8 @@ qnx_sdp = rule(
         "baseline": attr.string(
             mandatory = False,
             default = "qnx800",
-            doc = "The baseline which QNX Software Center will use for generating QNX SDP package".
-        )
+            doc = "The baseline which QNX Software Center will use for generating QNX SDP package.",
+        ),
         "patchset": attr.label(
             allow_single_file = True,
             doc = "The patchset file to be applied to the QNX SDP installer.",
