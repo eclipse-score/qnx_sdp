@@ -23,5 +23,5 @@ bazel_dep(name = "rules_pkg", version = "1.2.0")
 bazel_dep(name = "score_qnx_sdp", version = "0.0.1")
 local_path_override(
     module_name = "score_qnx_sdp",
-    path = "/home/nikola/projects/qnx_sdp",
+    path = "../",
 )

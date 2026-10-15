@@ -17,11 +17,10 @@ def _impl(ctx):
     """ Implementation of the qnx_sdp rule.
     """
     qnx_sdp_dir = ctx.actions.declare_directory(ctx.label.name)
-    user = ctx.configuration.default_shell_env["MYQNX_USER"]
-    password = ctx.configuration.default_shell_env["MYQNX_PASSWORD"]
     args = ctx.actions.args()
-    args.add("-myqnx.user", user)
-    args.add("-myqnx.password", password)
+    args.add("-mirrorBaseline", ctx.attr.baseline)
+    args.add("-myqnx.user", ctx.configuration.default_shell_env["MYQNX_USER"])
+    args.add("-myqnx.password", ctx.configuration.default_shell_env["MYQNX_PASSWORD"])
     args.add("-importAndInstall", ctx.file.patchset)
     args.add("-destination", qnx_sdp_dir.path)
     ctx.actions.run(
@@ -36,6 +35,11 @@ def _impl(ctx):
 qnx_sdp = rule(
     implementation = _impl,
     attrs = {
+        "baseline": attr.string(
+            mandatory = False,
+            default = "qnx800",
+            doc = "The baseline which QNX Software Center will use for generating QNX SDP package.",
+        ),
         "patchset": attr.label(
             allow_single_file = True,
             doc = "The patchset file to be applied to the QNX SDP installer.",
