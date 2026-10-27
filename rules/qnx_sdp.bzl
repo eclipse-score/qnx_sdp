@@ -18,6 +18,8 @@ def _impl(ctx):
     """
     qnx_sdp_dir = ctx.actions.declare_directory(ctx.label.name)
     args = ctx.actions.args()
+    if ctx.args.clean_install:
+        args.add("--cleanInstall")
     args.add("-mirrorBaseline", ctx.attr.baseline)
     args.add("-myqnx.user", ctx.configuration.default_shell_env["MYQNX_USER"])
     args.add("-myqnx.password", ctx.configuration.default_shell_env["MYQNX_PASSWORD"])
@@ -39,6 +41,11 @@ qnx_sdp = rule(
             mandatory = False,
             default = "qnx800",
             doc = "The baseline which QNX Software Center will use for generating QNX SDP package.",
+        ),
+        "clean_install": attr.bool(
+            mandatory = False,
+            default = False,
+            doc = "Remove the active baseline installation, if one exists",
         ),
         "patchset": attr.label(
             allow_single_file = True,
