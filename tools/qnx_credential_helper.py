@@ -87,9 +87,7 @@ def login_for_cookie(login: str, password: str) -> Optional[str]:
     ).encode("ascii")
 
     cookie_jar = http.cookiejar.CookieJar()
-    opener = urllib.request.build_opener(
-        urllib.request.HTTPCookieProcessor(cookie_jar)
-    )
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookie_jar))
     try:
         with opener.open(_QNX_URL, data=form_data) as response:
             if response.status != 200:
