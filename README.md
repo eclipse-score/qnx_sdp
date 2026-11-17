@@ -15,6 +15,7 @@
 
 Full documentation is in the [docs](docs/README.md) directory:
 
+- [Prerequisites](docs/prerequisites.md): QNX account and free license setup
 - [Getting started](docs/getting-started.md): prerequisites, credentials, and consuming the module
 - [Architecture](docs/architecture.md): components and build flow
 - [Reference](docs/reference.md): rules, repository rule, and credential helper

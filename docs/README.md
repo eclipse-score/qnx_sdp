@@ -20,6 +20,7 @@
 | Document | Description |
 | --- | --- |
 | [architecture.md](architecture.md) | Repository layout, components, and the end-to-end build flow |
+| [prerequisites.md](prerequisites.md) | QNX account creation, free license registration, and activation |
 | [getting-started.md](getting-started.md) | Prerequisites, credentials, and how to consume the module |
 | [reference.md](reference.md) | Reference for the rules, repository rule, credential helper, and module configuration |
 | [testing.md](testing.md) | The `tests/` module, how to run it, and what it does and does not verify |

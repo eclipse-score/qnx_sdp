@@ -18,7 +18,7 @@
 - Linux x86_64 host. The pinned installer is the Linux `.run` build, and the test outputs use the `k8` platform.
 - Bazel with Bzlmod support. The repository was last built with Bazel 9.3.0. No `.bazelversion` is checked in.
 - Network access to `qnx.com` and, for module resolution, to `bcr.bazel.build` and `raw.githubusercontent.com`.
-- A myQNX account with the licenses required for the SDP baseline you request.
+- A myQNX account with the licenses required for the SDP baseline you request. For a free license, see [QNX free license setup](prerequisites.md#qnx-free-license).
 
 ## Consuming the module
 
@@ -110,7 +110,7 @@ build --action_env=MYQNX_PASSWORD
 
 ### Authenticated downloads (credential helper)
 
-If the installer download from `qnx.com` requires a login, configure Bazel to use the helper:
+The checked-in [.bazelrc](../.bazelrc) already configures the credential helper for QNX installer downloads during builds and `bazel run`. In a consumer workspace, configure Bazel to use the helper if the download from `qnx.com` requires a login:
 
 ```
 # .bazelrc
@@ -134,7 +134,7 @@ password <password>
 
 Both `SCORE_QNX_USER` and `SCORE_QNX_PASSWORD` must be set for the environment variables to be used. Otherwise the helper falls back to `~/.netrc`.
 
-The checked-in `.bazelrc` does not set `--credential_helper`, so this must be configured by the consumer. Inside a consumer workspace the script is available as `@score_qnx_sdp//tools:qnx_credential_helper.py`. Bazel needs a filesystem path for the flag, for example one under the external repository directory. Copying the script into your own repository is the simplest option.
+Inside a consumer workspace the script is available as `@score_qnx_sdp//tools:qnx_credential_helper.py`. Bazel needs a filesystem path for the flag, for example one under the external repository directory. Copying the script into your own repository is the simplest option.
 
 ## Building
 
