@@ -18,18 +18,21 @@
 Adds the myQNX credentials to the CLI invocation so that they do not have to
 appear in the caller's (e.g. Bazel action) command line.
 
+Can optionally copy a BUILD file template into the generated package.
+
 Credentials are resolved in this order:
   1. --user and --password options of this wrapper (must be given together)
   2. the entry for machine "qnx.com" in the netrc file
 
 Usage:
-  qnx_software_center_wrapper.py --installer PATH [--user U] [--password P]
-      [--netrc FILE] -- <qnxsoftwarecenter_clt arguments>
+  qnx_software_center_wrapper.py --installer PATH [-d DEST] [--user U] [--password P]
+      [--netrc FILE] [-t TEMPLATE] -- <qnxsoftwarecenter_clt arguments>
 """
 
 import argparse
 import netrc
 import os
+import shutil
 import sys
 from typing import List, Optional, Sequence, Tuple
 
@@ -103,7 +106,11 @@ def resolve_credentials(
 
 
 def build_command(
-    installer: str, user: str, password: str, cli_args: Sequence[str]
+    installer: str,
+    user: str,
+    password: str,
+    cli_args: Sequence[str],
+    destination: Optional[str] = None,
 ) -> List[str]:
     """Build the qnxsoftwarecenter_clt command line.
 
@@ -111,12 +118,16 @@ def build_command(
         installer: Path to the qnxsoftwarecenter_clt executable.
         user: myQNX user name.
         password: myQNX password.
-        cli_args: Additional arguments passed to the CLI unchanged.
+        cli_args: Additional arguments passed to the CLI.
+        destination: Destination directory. If provided, appended to cli_args.
 
     Returns:
         The full argument vector, starting with the executable.
     """
-    return [installer, "-myqnx.user", user, "-myqnx.password", password, *cli_args]
+    cmd = [installer, "-myqnx.user", user, "-myqnx.password", password, *cli_args]
+    if destination:
+        cmd.extend(["-destination", destination])
+    return cmd
 
 
 def parse_args(argv: Sequence[str]) -> Tuple[argparse.Namespace, List[str]]:
@@ -141,6 +152,12 @@ def parse_args(argv: Sequence[str]) -> Tuple[argparse.Namespace, List[str]]:
         "-i", "--installer", required=True, help="Path to qnxsoftwarecenter_clt"
     )
     parser.add_argument(
+        "-d",
+        "--destination",
+        help="Destination directory for the generated package",
+        default=None,
+    )
+    parser.add_argument(
         "-u",
         "--user",
         help="myQNX user name (overrides netrc, requires --password)",
@@ -153,6 +170,12 @@ def parse_args(argv: Sequence[str]) -> Tuple[argparse.Namespace, List[str]]:
         default=None,
     )
     parser.add_argument("--netrc", help="Path to netrc file (default: ~/.netrc)")
+    parser.add_argument(
+        "-t",
+        "--template",
+        help="Path to BUILD.bazel template file to copy into the package root",
+        default=None,
+    )
 
     argv = list(argv)
     if "--" in argv:
@@ -168,7 +191,7 @@ def parse_args(argv: Sequence[str]) -> Tuple[argparse.Namespace, List[str]]:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    """Resolve credentials and run qnxsoftwarecenter_clt with them.
+    """Resolve credentials, run qnxsoftwarecenter_clt, and optionally copy BUILD file.
 
     Args:
         argv: Command line arguments without the program name. Defaults to sys.argv[1:].
@@ -179,15 +202,33 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args, cli_args = parse_args(argv if argv is not None else sys.argv[1:])
     try:
         user, password = resolve_credentials(args.user, args.password, args.netrc)
-        command = build_command(args.installer, user, password, cli_args)
-        os.execvp(command[0], command)
+        command = build_command(
+            args.installer, user, password, cli_args, args.destination
+        )
+
+        # Run the installer
+        exit_code = os.spawnvp(os.P_WAIT, command[0], command)
+        if exit_code != 0:
+            return exit_code
+
+        # Copy template to BUILD.bazel in the destination if requested
+        if args.template and args.destination:
+            try:
+                build_bazel_path = os.path.join(args.destination, "BUILD.bazel")
+                shutil.copy2(args.template, build_bazel_path)
+            except OSError as exc:
+                eprint(
+                    f"qnx_software_center_wrapper: failed to copy template to {build_bazel_path}: {exc}"
+                )
+                return 1
+
+        return 0
     except WrapperError as exc:
         eprint(f"qnx_software_center_wrapper: {exc}")
         return 1
     except OSError as exc:
         eprint(f"qnx_software_center_wrapper: failed to run {args.installer}: {exc}")
         return 1
-    return 0  # unreachable: execvp replaces the process on success
 
 
 if __name__ == "__main__":

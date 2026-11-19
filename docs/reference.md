@@ -15,185 +15,107 @@
 
 ## `qnx_sdp` rule
 
-Defined in [rules/qnx_sdp.bzl](../rules/qnx_sdp.bzl).
-
 ```starlark
 load("@score_qnx_sdp//rules:qnx_sdp.bzl", "qnx_sdp")
 ```
 
-Runs the QNX Software Center CLI to import a patchset and install the resulting SDP into a directory.
+Declares one directory output named after the target. Source: [rules/qnx_sdp.bzl](../rules/qnx_sdp.bzl).
 
-### Attributes
+| Attribute | Type | Default | Description |
+| --- | --- | --- | --- |
+| `sdp_version` | string | `"8.0.5"` | SDP version. Selects the newest `patchset_N.plist` under `patchsets/<version>/` unless `patchset` is set. Always exposed in package metadata. |
+| `patchset` | label (single file) | none | Own patchset file. Overrides the bundled one. |
+| `baseline` | string | `"qnx800"` | Baseline passed to `-mirrorBaseline`. |
+| `clean_install` | bool | `True` | Pass `-cleanInstall` to remove an existing baseline installation. |
+| `use_proxy` | bool | `False` | Pass the proxy options to the CLI. |
+| `proxy_host` | string | `"localhost"` | Proxy host, used if `use_proxy`. |
+| `proxy_port` | string | `"8080"` | Proxy port, used if `use_proxy`. |
+| `set_build_file` | bool | `True` | Copy [templates/sdp/BUILD.template](../templates/sdp/BUILD.template) to `BUILD.bazel` in the SDP root. |
 
-| Attribute | Type | Required | Default | Description |
-| --- | --- | --- | --- | --- |
-| `name` | name | yes | | Target name. Also the name of the output directory. |
-| `baseline` | string | no | `"qnx800"` | Baseline passed to `-mirrorBaseline`. |
-| `clean_install` | bool | no | `False` | Passes `-cleanInstall`, which removes the active baseline installation if one exists. |
-| `use_proxy` | bool | no | `False` | Pass the proxy settings below to the CLI. |
-| `proxy_host` | string | no | `"localhost"` | Proxy host, passed as `-proxy.host`. Only used if `use_proxy` is set. |
-| `proxy_port` | string | no | `"8080"` | Proxy port, passed as `-proxy.port`. Only used if `use_proxy` is set. |
-| `patchset` | label (single file) | effectively yes | none | Patchset file passed to `-importAndInstall`. |
-| `_wrapper` | label | private | `//tools:qnx_software_center_wrapper` | The [wrapper](#qnx-software-center-wrapper) that runs the CLI, built for `exec`. Not intended to be overridden. |
-| `_installer` | label | private | `@qnx_softwarecentercli//:installer` | The CLI executable, built for `exec`. Not intended to be overridden. |
+Private attributes (`_wrapper`, `_installer`, `_build_template`, `_patchsets`) are implementation details. The rule fails with `No patchset found for SDP version ...` if no bundled patchset matches.
 
-`patchset` is not marked `mandatory`. If it is omitted, `ctx.file.patchset` is `None` and the rule fails during analysis, so treat it as required.
+The rule returns `DefaultInfo` with the SDP directory and `PackageVariablesInfo`
+for `rules_pkg`, containing:
 
-Example with a proxy:
-
-```starlark
-qnx_sdp(
-    name = "qnx_sdp",
-    patchset = ":patchsets/0.0.1/patchset.plist",
-    use_proxy = True,
-    proxy_host = "127.0.0.1",
-    proxy_port = "48159",
-)
-```
-
-### Action
-
-Executable: the wrapper `//tools:qnx_software_center_wrapper`. The wrapper runs the CLI `@qnx_softwarecentercli//:installer` (`qnxsoftwarecenter/qnxsoftwarecenter_clt`).
-
-| Argument | Value |
+| Variable | Value |
 | --- | --- |
-| `--installer` | path of the CLI executable |
-| `-u` | `MYQNX_USER` from `ctx.configuration.default_shell_env`, only if set |
-| `-p` | `MYQNX_PASSWORD` from `ctx.configuration.default_shell_env`, only if set |
-| `--` | separator, everything after it goes to the CLI |
-| `-cleanInstall` | only if `clean_install` is set |
-| `-mirrorBaseline` | `baseline` |
-| `-proxy.host`, `-proxy.port` | `proxy_host`, `proxy_port`, only if `use_proxy` is set |
-| `-importAndInstall` | path of `patchset` |
-| `-destination` | path of the declared output directory |
+| `sdp_version` | The configured version, even when an explicit `patchset` is supplied. |
+| `patchset` | The resolved patchset file's basename with a trailing `.plist` removed, whether bundled or explicitly supplied (for example `patchset_1`). |
 
-The wrapper adds `-myqnx.user` and `-myqnx.password` to the CLI call itself.
+Set `package_variables = ":qnx_sdp"` on a `pkg_tar` target to use these values in
+`package_file_name`, for example `"qnx-sdp-{sdp_version}-{patchset}.tar.gz"`
+with `extension = "tar.gz"`.
 
-Inputs: the patchset. Tools: the wrapper and the installer, including the installer's runfiles. Outputs: one tree artifact.
-
-### Outputs
-
-- `DefaultInfo.files`: a depset containing the SDP directory, named `<name>`.
-- No custom providers are returned.
-
-### Credentials
-
-The myQNX credentials are optional in the build invocation:
-
-- If both `MYQNX_USER` and `MYQNX_PASSWORD` are in the action environment (`--action_env=MYQNX_USER --action_env=MYQNX_PASSWORD`), the rule passes them to the wrapper as `-u` and `-p`. In this case the password is part of the action command line.
-- Otherwise the wrapper reads the `qnx.com` entry from `~/.netrc`. The credentials then never appear in the action command line.
-
-## QNX Software Center wrapper
-
-File: [tools/qnx_software_center_wrapper.py](../tools/qnx_software_center_wrapper.py). Exposed as the `py_binary` `//tools:qnx_software_center_wrapper` in [tools/BUILD.bazel](../tools/BUILD.bazel). It uses only the Python standard library and shares no code with the credential helper.
-
-It supplies the myQNX credentials to `qnxsoftwarecenter_clt`, so that the caller does not have to put them on a command line.
-
-### Usage
+The action runs:
 
 ```
-qnx_software_center_wrapper.py -i|--installer PATH [-u|--user USER -p|--password PASSWORD]
-    [--netrc FILE] -- <qnxsoftwarecenter_clt arguments>
+qnx_software_center_wrapper --installer <clt> --destination <out> [-u .. -p ..] [-t <template>] --
+    [-cleanInstall] -mirrorBaseline <baseline> [-proxy.host .. -proxy.port ..] -importAndInstall <patchset>
 ```
 
-| Option | Required | Description |
-| --- | --- | --- |
-| `-i`, `--installer` | yes | Path to `qnxsoftwarecenter_clt`. |
-| `-u`, `--user` | with `-p` | myQNX user name. Overrides `.netrc`. |
-| `-p`, `--password` | with `-u` | myQNX password. Overrides `.netrc`. |
-| `--netrc` | no | Path to the netrc file. Default: `~/.netrc`. |
+## Bundled patchsets
 
-Everything after the first `--` is passed to the CLI unchanged.
+Located at `patchsets/<sdp_version>/patchset_<N>.plist`. Each lists the QNX packages (`id/version//package`) to import and install, one per line. The highest `N` for a version is used.
 
-### Behavior
+## Generated SDP BUILD file
 
-1. `--user` and `--password` must be given together, or not at all. Giving only one is an argument error (exit code 2).
-2. If both are given, they are used. Otherwise the wrapper reads the login and password of machine `qnx.com` from the netrc file. The two sources are never mixed.
-3. If no complete credentials are found (including a missing netrc file or entry), the wrapper prints an error and exits with code 1.
-4. The wrapper builds `<installer> -myqnx.user <user> -myqnx.password <password> <CLI arguments>` and replaces itself with it (`execvp`). The CLI's output and exit code therefore pass straight through.
-5. If the installer cannot be started, the wrapper prints an error and exits with code 1.
+[templates/sdp/BUILD.template](../templates/sdp/BUILD.template) becomes `BUILD.bazel` inside the SDP directory. It contains public filegroups, grouped as:
 
-Example `~/.netrc` entry (use `chmod 600`):
+| Group | Targets (suffix `_x86_64` or `_aarch64` where applicable) |
+| --- | --- |
+| Whole tree | `all_files`, `empty`, `host_all`, `host_dir`, `target_all`, `target_dir`, `sysroot_dir` |
+| Binutils | `ar`, `as`, `gcov`, `ld`, `strip`, `objdump`, `readelf`, `mkifs` |
+| Compiler and linker | `cc`, `cxx`, `qcc_target_config`, `compiler_pieces`, `linker_pieces`, `compiler_files`, `linker_files`, `cxx_builtin_include_directories` |
+| Target content | `target_libraries`, `target_headers`, `pci_solibs`, `ssl_solibs` |
+| File sets | `ar_files`, `as_files`, `strip_files`, `coverage_files`, `dwp_files`, `objcopy_files` |
+| Utilities | `qchecksec`, `mkifs`, `elfnote`, `dumpifs`, `traceprinter`, `use`, `secpolcompile` |
 
-```
-machine qnx.com
-login <user>
-password <password>
-```
-
-The wrapper still has to pass the credentials to the CLI as arguments, so they can be visible in the process list on the build host while the CLI runs.
+The template is the source of truth for exact names.
 
 ## `qnx_softwarecentercli` repository rule
 
-Defined in [rules/qnx_softwarecentercli.bzl](../rules/qnx_softwarecentercli.bzl). Loaded in [MODULE.bazel](../MODULE.bazel) with `use_repo_rule`.
+Source: [rules/qnx_softwarecentercli.bzl](../rules/qnx_softwarecentercli.bzl). Instantiated in [MODULE.bazel](../MODULE.bazel) as `@qnx_softwarecentercli`; not meant for direct use by consumers.
 
-### Attributes
-
-| Attribute | Type | Required | Description |
-| --- | --- | --- | --- |
-| `name` | string | yes | Repository name (`qnx_softwarecentercli` in this module). |
-| `url` | string | yes | URL of the QNX Software Center installer `.run` script. |
-| `sha256` | string | yes | SHA-256 of the installer. Download fails on mismatch. |
-
-### Generated targets
-
-| Target | Description |
+| Attribute | Description |
 | --- | --- |
-| `@qnx_softwarecentercli//:installer` | `filegroup` whose single source is `qnxsoftwarecenter/qnxsoftwarecenter_clt`, with the whole installation (`glob(["**"])`) as `data`. Public visibility. |
+| `url` | Location of the Linux `.run` installer. |
+| `sha256` | Checksum the download must match. |
 
-### Installer invocation
+It downloads and runs the installer with `--nox11 force-override disable-auto-start agree-to-license-terms .` (300 s timeout) and writes a `BUILD.bazel` exposing `:installer` (the `qnxsoftwarecenter/qnxsoftwarecenter_clt` binary, with the `qnxsoftwarecenter/**` tree as data).
+
+## Wrapper
+
+[tools/qnx_software_center_wrapper.py](../tools/qnx_software_center_wrapper.py), target `//tools:qnx_software_center_wrapper`. Adds `-myqnx.user` / `-myqnx.password` to a `qnxsoftwarecenter_clt` call so callers do not need them in their own command line, appends `-destination`, and optionally copies a BUILD template into the destination after success.
 
 ```
-./qnx-swc-setup.run --nox11 force-override disable-auto-start agree-to-license-terms .
+qnx_software_center_wrapper.py --installer PATH [-d DEST] [-u USER -p PASSWORD] [--netrc FILE] [-t TEMPLATE] -- <clt arguments>
 ```
 
-- Timeout: 300 seconds.
-- A non-zero exit code fails the fetch with the installer's stdout and stderr.
+| Option | Description |
+| --- | --- |
+| `-i`, `--installer` | Required. Path to `qnxsoftwarecenter_clt`. |
+| `-d`, `--destination` | Passed to the CLI as `-destination`. |
+| `-u`, `--user` / `-p`, `--password` | Credentials. Must be given together. Override `.netrc`. |
+| `--netrc` | netrc file. Default `~/.netrc` (entry for machine `qnx.com`). |
+| `-t`, `--template` | File copied to `<destination>/BUILD.bazel` after a successful run. |
 
-### Upgrading the installer
-
-1. Obtain the new installer URL.
-2. Compute its checksum: `sha256sum qnx-setup-*.run`.
-3. Update `url` and `sha256` in [MODULE.bazel](../MODULE.bazel).
-4. Rebuild, and refresh the lockfile if Bazel asks for it.
+Arguments after `--` go to the CLI unchanged. The wrapper exits with the CLI's exit code.
 
 ## Credential helper
 
-File: [tools/qnx_credential_helper.py](../tools/qnx_credential_helper.py). Exported through `exports_files` in [tools/BUILD.bazel](../tools/BUILD.bazel).
+[tools/qnx_credential_helper.py](../tools/qnx_credential_helper.py) implements the [Bazel credential helper protocol](https://github.com/bazelbuild/proposals/blob/main/designs/2022-06-07-bazel-credential-helpers.md). It reads a JSON request on stdin, and for `https://qnx.com` or `https://*.qnx.com` URIs logs in at `https://www.qnx.com/account/login.html` and prints a `Cookie: myQNX=...` header. Credentials come from `SCORE_QNX_USER` + `SCORE_QNX_PASSWORD`, else `~/.netrc`.
 
-### Protocol
+Exit codes: `0` ok, `1` general error, `2` non-HTTPS URI, `3` non-QNX domain, `4` no credentials, `5` login failed, `6` invalid JSON.
 
-- Input (stdin): JSON such as `{"uri": "https://www.qnx.com/..."}`.
-- Output (stdout): JSON `{"headers": {"Cookie": ["myQNX=<token>"]}}`.
-- Errors are written to stderr, and the exit code is 1.
-
-### Logic
-
-1. Parse `uri`. Exit with `Invalid URI` if it is missing or malformed.
-2. Accept only the `https` scheme and host `qnx.com` or any `*.qnx.com` subdomain (case-insensitive, trailing dot ignored). Otherwise exit with `Unsupported domain`. This stops credentials being sent to other hosts.
-3. Resolve credentials:
-   - If both `SCORE_QNX_USER` and `SCORE_QNX_PASSWORD` are set, use them.
-   - Otherwise read the `qnx.com` entry from `~/.netrc`. A missing file or entry exits with `Failed getting credentials from .netrc`.
-4. POST `userlogin`, `password`, `UseCookie=1` (form-encoded) to `https://www.qnx.com/account/login.html`, using a cookie jar.
-5. Fail if the response status is not 200, or if no `myQNX` cookie was set.
-6. Print the `Cookie: myQNX=<value>` header for Bazel to attach to the download.
-
-HTTP error responses raise `urllib.error.HTTPError`, which is not caught, so the script exits with a traceback. The script sets no network timeout.
-
-### Manual check
+Manual check:
 
 ```sh
 echo '{"uri":"https://www.qnx.com/download/"}' | SCORE_QNX_USER=<user> SCORE_QNX_PASSWORD=<pass> python3 tools/qnx_credential_helper.py
 ```
 
-A rejected domain, for example `{"uri":"https://example.com/"}`, must print `Unsupported domain` and exit with 1 without any network access.
+## Environment variables
 
-## Module configuration summary
-
-| File | Setting | Value |
+| Variable | Used by | Meaning |
 | --- | --- | --- |
-| [MODULE.bazel](../MODULE.bazel) | `module(name)` | `score_qnx_sdp` |
-| [MODULE.bazel](../MODULE.bazel) | `bazel_dep` | `rules_pkg` 1.2.0 |
-| [MODULE.bazel](../MODULE.bazel) | installer repository | `qnx_softwarecentercli`, QNX Software Center 2.0.4 (Linux) |
-| [.bazelrc](../.bazelrc) | registries | Eclipse S-CORE registry, then `bcr.bazel.build` |
-| [tests/MODULE.bazel](../tests/MODULE.bazel) | module | `score_qnx_sdp_test`, with `local_path_override` to `../` |
+| `MYQNX_USER`, `MYQNX_PASSWORD` | `qnx_sdp` (via `--action_env`) | Credentials for the SDP installation. Overrides `.netrc`. |
+| `SCORE_QNX_USER`, `SCORE_QNX_PASSWORD` | credential helper | Credentials for Bazel downloads from `qnx.com`. |

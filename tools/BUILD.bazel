@@ -20,5 +20,6 @@ exports_files([
 py_binary(
     name = "qnx_software_center_wrapper",
     srcs = ["qnx_software_center_wrapper.py"],
+    legacy_create_init = 0,
     visibility = ["//visibility:public"],
 )

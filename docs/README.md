@@ -11,49 +11,30 @@
   SPDX-License-Identifier: Apache-2.0
 ----------------------------------------------------------------------------- -->
 
-# score_qnx_sdp Documentation
+# score_qnx_sdp documentation
 
-`score_qnx_sdp` is a Bazel module (Bzlmod) that produces a QNX Software Development Platform (SDP) from Bazel. It downloads the QNX Software Center command-line tool, then uses it to install a QNX SDP described by a patchset file into a Bazel-managed directory. That directory can be packaged (for example into a tarball) or consumed by a toolchain.
+`score_qnx_sdp` downloads the QNX Software Center CLI and uses it to install a QNX SDP, described by a patchset file, into a Bazel-managed directory.
 
-## Contents
+## Documents
 
-| Document | Description |
-| --- | --- |
-| [architecture.md](architecture.md) | Repository layout, components, and the end-to-end build flow |
-| [prerequisites.md](prerequisites.md) | QNX account creation, free license registration, and activation |
-| [getting-started.md](getting-started.md) | Prerequisites, credentials, and how to consume the module |
-| [reference.md](reference.md) | Reference for the rules, repository rule, credential helper, and module configuration |
-| [testing.md](testing.md) | The `tests/` module, how to run it, and what it does and does not verify |
-| [troubleshooting.md](troubleshooting.md) | Common failures and security notes |
+| Document | Audience | Content |
+| --- | --- | --- |
+| [license-and-credentials.md](license-and-credentials.md) | everyone | QNX account, free license, `~/.netrc`, environment variables, license file for the toolchain |
+| [user-guide.md](user-guide.md) | consumers | Adding the module, defining `qnx_sdp` targets, using the output, proxy, custom patchsets |
+| [reference.md](reference.md) | everyone | `qnx_sdp` attributes, generated BUILD targets, repository rule, wrapper, credential helper |
+| [developer-guide.md](developer-guide.md) | contributors | Repository layout, how the build works, local builds, CI, updating the installer or patchsets, security |
+| [troubleshooting.md](troubleshooting.md) | everyone | Symptom, cause and fix tables, split by audience |
 
-## At a glance
+## Which path are you on?
 
-- Module name: `score_qnx_sdp` (declared in [MODULE.bazel](../MODULE.bazel)).
-- Public API:
-  - `qnx_sdp` rule, from `@score_qnx_sdp//rules:qnx_sdp.bzl`.
-  - `qnx_softwarecentercli` repository rule, from `@score_qnx_sdp//rules:qnx_softwarecentercli.bzl`. It is used internally by the module.
-  - `tools/qnx_credential_helper.py`, a Bazel credential helper for authenticated downloads from `qnx.com`.
-- Dependency: `rules_pkg` 1.2.0.
-- License: Apache-2.0, copyright Eclipse Foundation contributors (see the headers in each source file).
+- **Consumer**: [license-and-credentials.md](license-and-credentials.md), then [user-guide.md](user-guide.md).
+- **Developer**: the consumer path first, then [developer-guide.md](developer-guide.md).
 
-## Quick example
+## Facts at a glance
 
-```starlark
-# BUILD
-load("@score_qnx_sdp//rules:qnx_sdp.bzl", "qnx_sdp")
-
-qnx_sdp(
-    name = "qnx_sdp",
-    patchset = ":patchsets/0.0.1/patchset.plist",
-)
-```
-
-Add your myQNX credentials to `~/.netrc` (`machine qnx.com`, `login`, `password`), then build:
-
-```sh
-bazel build //:qnx_sdp
-```
-
-Alternatively, pass `MYQNX_USER` and `MYQNX_PASSWORD` with `--action_env`. See [getting-started.md](getting-started.md#build-time-credentials-qnx_sdp).
-
-See [getting-started.md](getting-started.md) for the full setup.
+- Module name: `score_qnx_sdp` (see [MODULE.bazel](../MODULE.bazel)). Dependencies: `rules_pkg`, `rules_python`.
+- Public API: the `qnx_sdp` rule in `@score_qnx_sdp//rules:qnx_sdp.bzl`.
+- Internal: the `@qnx_softwarecentercli` repository, declared by the module itself. Consumers do not declare it.
+- Supported SDPs: 8.0.5 (default) and 8.0.6, with patchsets in [patchsets/](../patchsets).
+- Host: Linux x86_64. Network access to `qnx.com` is required at fetch and build time.
+- License: Apache-2.0.
