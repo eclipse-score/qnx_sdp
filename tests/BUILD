@@ -16,7 +16,6 @@ load("@score_qnx_sdp//rules:qnx_sdp.bzl", "qnx_sdp")
 
 qnx_sdp(
     name = "qnx_sdp",
-    patchset = ":patchsets/0.0.1/patchset.plist",
     proxy_host = "127.0.0.1",
     proxy_port = "48159",
     use_proxy = True,

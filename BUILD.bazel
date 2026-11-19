@@ -1,3 +1,7 @@
+load("@aspect_rules_lint//format:defs.bzl", "format_multirun", "format_test")
+load("@score_qnx_sdp//rules:qnx_sdp.bzl", "qnx_sdp")
+load("@score_tools//cr_checker:cr_checker.bzl", "copyright_checker")
+
 # *******************************************************************************
 # Copyright (c) 2026 Contributors to the Eclipse Foundation
 #
@@ -10,8 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
-load("@aspect_rules_lint//format:defs.bzl", "format_multirun", "format_test")
-load("@score_tools//cr_checker:cr_checker.bzl", "copyright_checker")
+package(default_visibility = ["//visibility:public"])
 
 format_multirun(
     name = "format.fix",
@@ -38,4 +41,13 @@ format_test(
 copyright_checker(
     name = "copyright",
     visibility = ["//visibility:public"],
+)
+
+qnx_sdp(
+    name = "qnx_sdp_805",
+)
+
+qnx_sdp(
+    name = "qnx_sdp_806",
+    sdp_version = "8.0.6",
 )

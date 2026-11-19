@@ -13,41 +13,36 @@
 
 # Troubleshooting
 
-## Common failures
+## For users
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| `qnx_software_center_wrapper: No myQNX credentials: ...` | No `MYQNX_*` variables passed with `--action_env`, and no complete `machine qnx.com` entry in `~/.netrc` | Add the `.netrc` entry, or export both variables and pass `--action_env=MYQNX_USER --action_env=MYQNX_PASSWORD`. |
-| `--user and --password must be given together` | Only one of `MYQNX_USER` and `MYQNX_PASSWORD` was forwarded | Set both, or neither (and use `.netrc`). |
-| `qnx_software_center_wrapper: failed to run ...` | The installer path is wrong or not executable | Check the `@qnx_softwarecentercli` repository was fetched correctly. See [Forcing a refetch](#forcing-a-refetch). |
-| `qnxsoftwarecenter: not found` from the action | The CLI's runfiles are missing from the action inputs | Make sure the rule passes the installer's default runfiles as `tools`. |
-| Analysis error about `patchset` being `None` | `patchset` attribute not set | Set `patchset` on the `qnx_sdp` target. |
-| `Failed to extract QNX Software Center: ...` during fetch | Installer exited non-zero | Read the printed stdout and stderr. Check disk space, that the file is a Linux `.run` installer, and that it can run on the host. |
-| Checksum mismatch on download | Wrong `sha256`, or the download returned an HTML login page | Verify `sha256` against the file. If the page requires login, configure the credential helper. |
-| Download fails with 401/403 | No authentication for `qnx.com` | Configure `--credential_helper` and credentials. See [getting-started.md](getting-started.md#authenticated-downloads-credential-helper). |
-| `Unsupported domain` from the helper | URL is not `https` on `qnx.com` or a subdomain | Intended behavior. Use the helper only for `*.qnx.com`. |
-| `Failed getting credentials from .netrc` | Neither `SCORE_QNX_*` variables nor a `qnx.com` entry in `~/.netrc` | Set both `SCORE_QNX_USER` and `SCORE_QNX_PASSWORD`, or add a `machine qnx.com` entry. |
-| `Failed to get myQNX cookie from login page` | Login did not succeed (bad credentials) | Check the user name and password by logging in on qnx.com. |
-| Installer fetch hits the 300 second timeout | Slow network or disk | Retry, or raise `timeout` in [rules/qnx_softwarecentercli.bzl](../rules/qnx_softwarecentercli.bzl). |
-| Module `rules_pkg` not found when building in `tests/` | Network or registry access problem | `tests/` uses the default registry. Check connectivity to `bcr.bazel.build`. |
-| `qnx_sdp` action fails with an authentication or license error | Account lacks entitlement for the baseline or packages | Confirm the myQNX account has the required licenses for the patchset. |
+| `No myQNX credentials: ...` | No complete `machine qnx.com` entry in `~/.netrc` and no `MYQNX_*` variables forwarded | Set up [credentials](license-and-credentials.md#2-myqnx-credentials). |
+| `--user and --password must be given together` | Only one of `MYQNX_USER` / `MYQNX_PASSWORD` is forwarded | Set both or neither. |
+| `No patchset found for SDP version X` | `sdp_version` has no directory in `patchsets/` | Use a supported version or set `patchset`. |
+| Action fails with an authentication or license error | Account lacks a license for the baseline or packages | Check the license in your [account](https://www.qnx.com/account/index.html#products) and [activate it](license-and-credentials.md#3-activate-the-license-key). |
+| Download fails with 401/403, or checksum mismatch because an HTML login page was returned | `qnx.com` needs authentication | Enable the [credential helper](user-guide.md#authenticated-downloads). |
+| Fetch or CLI cannot reach the network | Proxy required | Set `use_proxy`, `proxy_host`, `proxy_port`. |
+| QNX toolchain configured by [`bazel_cpp_toolchains`](https://github.com/eclipse-score/bazel_cpp_toolchains) complains about a missing license | License file not at the configured `license_path` | Check `license_path`; the default is `/opt/score_qnx/license/licenses` ([steps](license-and-credentials.md#4-license-file-for-the-s-core-toolchain)). |
+| Module resolution fails | Registry not reachable or not configured | Add the `--registry` flags from the [user guide](user-guide.md#add-the-module). |
+
+## For developers
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| `Failed to extract QNX Software Center: ...` during fetch | Installer exited non-zero | Read the printed output. Check disk space and that the file is the Linux `.run` installer. |
+| Installer fetch hits the 300 s timeout | Slow disk or network | Retry, or raise `timeout` in [rules/qnx_softwarecentercli.bzl](../rules/qnx_softwarecentercli.bzl). |
+| Checksum mismatch on download | Wrong `sha256` in [MODULE.bazel](../MODULE.bazel), or `qnx.com` returned a login/authorization error page instead of the installer. Bazel hashes that response as a downloaded file, so an authentication failure can misleadingly appear as a checksum mismatch. | Check [download authentication](user-guide.md#authenticated-downloads) and confirm the downloaded file is the actual installer before verifying its checksum with `sha256sum`. Do not replace the expected checksum with the checksum of an error page. |
+| `failed to run <installer>` from the wrapper | Installer path wrong or not executable | Refetch (below). |
+| `Unsupported domain` from the helper | URI is not `https` on `qnx.com` | Intended. The helper is only for `*.qnx.com`. |
+| `Failed getting credentials from environment or .netrc` | No `SCORE_QNX_*` pair and no `.netrc` entry | Provide one. |
+| `Failed to get myQNX cookie from login page` | Login rejected | Verify the credentials on qnx.com. |
+| `bzlmod-lock` CI check fails | `MODULE.bazel.lock` stale | `bazel mod deps --lockfile_mode=update`, commit the lockfile. |
 
 ## Forcing a refetch
 
-If the installer repository is in a bad state:
-
 ```sh
-bazel clean --expunge        # or: bazel fetch --force @qnx_softwarecentercli//:installer
+bazel fetch --force @qnx_softwarecentercli//:installer
 ```
 
-Use `--expunge` only if you accept re-downloading everything in the output base.
-
-## Security notes
-
-- With credentials in `~/.netrc`, the password is not part of the Bazel action command line, so it does not appear in `--subcommands` output, build logs or remote execution records. The `.netrc` file is read outside Bazel's inputs, so changing it does not invalidate cached results.
-- The wrapper passes `-myqnx.password` to `qnxsoftwarecenter_clt` as an argument, so the password can still be seen in the process list on the build host while the CLI runs.
-- If you use `MYQNX_USER` and `MYQNX_PASSWORD` with `--action_env`, the rule passes them to the wrapper as `-u` and `-p`, so the password is part of the action command line. Avoid remote caches or execution services that record action command lines, and treat build logs from `--subcommands` or `--verbose_failures` as sensitive.
-- The installer is run with `agree-to-license-terms`. Make sure the people running the build are entitled to accept the QNX license terms.
-- The credential helper only sends credentials to `https://*.qnx.com` hosts. Keep that check when modifying it.
-- Do not commit credentials, `.netrc`, or `user.bazelrc` files that contain them.
-- The installer is verified by SHA-256, so any URL or checksum change should be reviewed.
+As a last resort, `bazel clean --expunge` re-downloads everything in the output base.
