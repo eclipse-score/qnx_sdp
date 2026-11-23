@@ -6,34 +6,45 @@
 
   This program and the accompanying materials are made available under the
   terms of the Apache License Version 2.0 which is available at
-  https://www.apache.org/licenses/LICENSE-2.0
+  https://www.apache.org/licenses/LICENSE-2.0.
 
   SPDX-License-Identifier: Apache-2.0
 ----------------------------------------------------------------------------- -->
 
 # Developer guide
 
-For contributors to this module. Set up your account first: [License and credentials](license-and-credentials.md). Rule and tool details are in the [reference](reference.md).
+If you contribute to `score_qnx_sdp`, use this guide to build or maintain the
+module, update its installer or patchsets, and review its security-sensitive
+behavior. The module installs a QNX Software Development Platform (SDP) with
+the QNX Software Center command-line interface (CLI). This guide assumes you
+have completed [license and credential setup](license-and-credentials.md);
+consumer setup is outside this guide's scope. See the
+[reference](reference.md) for rule and tool details.
 
 ## Repository layout
 
+The repository contains the module definition, rule implementations, helper
+tools, patchsets, and generated SDP BUILD template:
+
 ```
 .
-├── MODULE.bazel            Module definition, pinned installer (@qnx_softwarecentercli)
-├── BUILD.bazel             Format/copyright checks; qnx_sdp_805 and qnx_sdp_806 targets
+├── MODULE.bazel            Module definition and pinned CLI installer
+├── BUILD.bazel             Format and copyright checks; SDP targets
 ├── .bazelrc                Registries and credential helper (root module only)
 ├── rules/
 │   ├── qnx_sdp.bzl                  qnx_sdp rule
 │   └── qnx_softwarecentercli.bzl    repository rule installing the CLI
 ├── tools/
-│   ├── qnx_software_center_wrapper.py   supplies credentials, copies BUILD template
-│   └── qnx_credential_helper.py         Bazel credential helper for qnx.com
-├── patchsets/<version>/patchset_<N>.plist   bundled package selections
+│   ├── qnx_software_center_wrapper.py   Credential and template wrapper
+│   └── qnx_credential_helper.py         Bazel credential helper
+├── patchsets/8.0.5/patchset_1.plist   bundled package selections
 ├── templates/sdp/BUILD.template     BUILD file copied into the generated SDP
 └── docs/
 ```
 
-## How it works
+## Build flow
+
+This flowchart shows how Bazel fetches the CLI and creates the SDP directory:
 
 ```mermaid
 flowchart TD
@@ -44,72 +55,138 @@ flowchart TD
     B -- yes --> F
     E --> F[qnx_sdp action]
     F --> G[Wrapper resolves credentials]
-    G --> H["qnxsoftwarecenter_clt -mirrorBaseline ... -importAndInstall patchset -destination out"]
-    H --> I[Wrapper copies BUILD.template to out/BUILD.bazel]
-    I --> J[Tree artifact: SDP directory]
+    G --> H["Run qnxsoftwarecenter_clt"]
+    H --> I["Mirror baseline and install patchset"]
+    I --> J[Wrapper copies template if requested]
+    J --> K[Tree artifact: SDP directory]
 ```
 
-1. **Fetch** (repository rule): downloads the pinned installer and runs it non-interactively. This accepts the QNX Software Center license terms on behalf of whoever runs the build.
-2. **Build** (`qnx_sdp` action): the wrapper reads credentials (`MYQNX_*` forwarded by the rule, else `~/.netrc`), then launches the CLI which mirrors the baseline, imports the patchset and installs into the output directory. The wrapper then copies the BUILD template.
-3. **Packaging** is left to the consumer (for example `pkg_tar`).
+The build has three stages:
 
-Design notes:
+1. **Fetch:** The repository rule downloads the pinned installer and runs it
+   non-interactively. The installer accepts QNX Software Center license terms
+   on behalf of the person running the build.
+2. **Build:** The `qnx_sdp` action runs the wrapper. The wrapper reads
+   credentials from forwarded `MYQNX_*` variables or `~/.netrc`, then launches
+   the CLI to mirror the baseline, import the patchset, and install into the
+   output directory. The wrapper copies the BUILD template when requested.
+3. **Package:** The consumer packages the resulting SDP directory, for example
+   with `pkg_tar`.
 
-- The installer is pinned by URL and SHA-256. The SDP content is not hermetic: it depends on what QNX serves at build time.
-- The patchset is a plain input, so changing it invalidates the action. Credentials are not attributes, so they never appear in BUILD files.
-- `@qnx_softwarecentercli` is declared in this module and referenced by a label in this module's `.bzl`, so consumers need no declaration.
-- Wrapper and installer are `exec` configuration tools of the action.
+The implementation has these design properties:
+
+- The installer is pinned by URL and SHA-256. SDP content is not hermetic
+  because it depends on what QNX serves at build time.
+- The patchset is an action input, so changing it invalidates the action.
+  Credentials are not rule attributes and do not appear in BUILD files.
+- This module declares `@qnx_softwarecentercli` and references it from its
+  `.bzl` file, so consumers do not declare it.
+- The wrapper and installer are execution-configuration tools for the action.
 
 ## Build and format
 
-Root module:
+To build both SDP targets and format the Python, Starlark, and YAML files, run:
 
 ```sh
 bazel build //:qnx_sdp_805 //:qnx_sdp_806
-bazel run //:format.fix       # format Python, Starlark, YAML
-bazel run //:copyright-check     # copyright headers (//:copyright-fix to repair)
+bazel run //:format.fix
 ```
 
-Builds need network access and valid myQNX credentials. For consumer examples, including packaging the SDP with `pkg_tar`, see the [user guide](user-guide.md).
-
-The root [.bazelrc](../.bazelrc) disables implicit Python `__init__.py` creation, including for dependencies. Python packages must supply any required `__init__.py` files explicitly.
-
-The [tests/](../tests/) directory is not yet ready as an automated test suite. Its current setup is mainly for manual verification by module owners.
-
-## CI
-
-[.github/workflows/checks.yml](../.github/workflows/checks.yml) runs the S-CORE copyright check, the formatting check and the Bzlmod lockfile check on pull requests and pushes to `main`. Run the equivalents locally before opening a PR. If you change dependencies, update `MODULE.bazel.lock` (`bazel mod deps --lockfile_mode=update`).
-
-## Common maintenance tasks
-
-### Update the QNX Software Center CLI
-
-1. Get the new Linux `.run` URL from qnx.com and compute its SHA-256 (`sha256sum`).
-2. Update `url` and `sha256` in [MODULE.bazel](../MODULE.bazel).
-3. Fetch the installer again (`bazel fetch --force @qnx_softwarecentercli//:installer`) and rebuild the root SDP targets with `bazel build //:qnx_sdp_805 //:qnx_sdp_806`.
-
-### Add or update a patchset
-
-1. Create `patchsets/<sdp_version>/patchset_<N>.plist` with `N` higher than the existing files. The rule takes the highest `N`, so older ones stay for reference only. Export it from QNX Software Center or copy the previous file and change the package versions.
-2. For a new SDP version, add a `qnx_sdp` target to the root [BUILD.bazel](../BUILD.bazel) with `sdp_version` set and build it.
-3. Run a build and check the result contains the expected toolchain files.
-
-### Change the generated BUILD file
-
-Edit [templates/sdp/BUILD.template](../templates/sdp/BUILD.template). Paths in it are relative to the SDP root and hard-code the QNX target triple (for example `x86_64-pc-nto-qnx8.0.0`), so check them after every SDP version bump.
-
-### Debug the CLI manually
+To check formatting, run:
 
 ```sh
-bazel run @qnx_softwarecentercli//:qnxsoftwarecenter/qnxsoftwarecenter_clt -- -help
+bazel test //:format.check
 ```
 
-## Security notes
+Builds need network access and valid myQNX credentials. For consumer examples,
+including packaging the SDP with `pkg_tar`, see the [user guide](user-guide.md).
 
-- Passwords from `~/.netrc` are not in the Bazel action command line, so they do not appear in `--subcommands` output, build logs or remote execution records.
-- The wrapper passes `-myqnx.password` to the CLI as an argument, so it is visible in the host process list while the CLI runs.
-- With `MYQNX_*` and `--action_env`, the rule adds `-u`/`-p` to the action command line. Avoid remote caches or execution services that record command lines, and treat `--subcommands` and `--verbose_failures` output as sensitive.
-- The installer runs with `agree-to-license-terms`. Builders must be entitled to accept QNX's license terms.
-- The credential helper must only send credentials to `https://*.qnx.com`. Keep that check when changing it.
-- Review any change of installer URL or checksum.
+The root [.bazelrc](../.bazelrc) disables implicit Python `__init__.py`
+creation, including for dependencies. Python packages must supply any required
+`__init__.py` files explicitly.
+
+The [tests/](../tests/) directory supports manual verification by module
+owners; it is not an automated test suite.
+
+## Continuous integration (CI)
+
+The [checks workflow](../.github/workflows/checks.yml) runs the S-CORE copyright
+check, formatting check, and Bzlmod lockfile check on pull requests and pushes
+to `main`. Run the build and formatting commands in [Build and format](#build-and-format)
+locally before opening a pull request.
+
+If you change dependencies, update `MODULE.bazel.lock` with:
+
+```sh
+bazel mod deps --lockfile_mode=update
+```
+
+## Maintain the installer
+
+To update the QNX Software Center CLI:
+
+1. Get the new Linux `.run` URL from qnx.com.
+2. Compute its SHA-256 checksum with `sha256sum`.
+3. Update `url` and `sha256` in [MODULE.bazel](../MODULE.bazel).
+4. Fetch the installer:
+
+   ```sh
+   bazel fetch --force @qnx_softwarecentercli//:installer
+   ```
+
+5. Rebuild both root SDP targets:
+
+   ```sh
+   bazel build //:qnx_sdp_805 //:qnx_sdp_806
+   ```
+
+## Add or update a patchset
+
+To add or update a patchset:
+
+1. Use a patchset number `N` greater than the existing files for that SDP
+   version. The rule selects the highest number, so older files remain for
+   reference.
+2. Export a patchset from QNX Software Center to
+   `patchsets/SDP_VERSION/patchset_N.plist`, or copy the previous file to that
+   path. Replace `SDP_VERSION` with the SDP version.
+3. If you copied an existing patchset, update its package versions.
+4. If you add an SDP version, add a `qnx_sdp` target to the root
+   [BUILD.bazel](../BUILD.bazel) and set `sdp_version`.
+5. Build the target and check that its output contains the expected toolchain
+   files.
+
+## Change the generated BUILD file
+
+Edit [templates/sdp/BUILD.template](../templates/sdp/BUILD.template). Its paths
+are relative to the SDP root, and it hard-codes the QNX target triple (for
+example, `x86_64-pc-nto-qnx8.0.0`). Check those paths after each SDP version
+update.
+
+## Debug the CLI manually
+
+To display the CLI help, run:
+
+```sh
+bazel run \
+  @qnx_softwarecentercli//:qnxsoftwarecenter/qnxsoftwarecenter_clt -- -help
+```
+
+## Review security-sensitive behavior
+
+Keep these security properties in mind when changing the module:
+
+- Passwords from `~/.netrc` are not in the Bazel action command line, so they do
+  not appear in `--subcommands` output, build logs, or remote execution records.
+- The wrapper passes `-myqnx.password` to the CLI as an argument. The password
+  is visible in the host process list while the CLI runs.
+- With `MYQNX_*` and `--action_env`, the rule adds `-u` and `-p` values to the
+  action command line. Avoid remote caches or execution services that record
+  command lines, and treat `--subcommands` and `--verbose_failures` output as
+  sensitive.
+- The installer runs with `agree-to-license-terms`. Builders must be entitled
+  to accept QNX's license terms.
+- The credential helper must only send credentials to `https://*.qnx.com`.
+  Preserve that check when changing the helper.
+- Review every change to the installer URL or checksum.
 - Never commit credentials.

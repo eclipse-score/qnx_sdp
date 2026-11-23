@@ -6,35 +6,46 @@
 
   This program and the accompanying materials are made available under the
   terms of the Apache License Version 2.0 which is available at
-  https://www.apache.org/licenses/LICENSE-2.0
+  https://www.apache.org/licenses/LICENSE-2.0.
 
   SPDX-License-Identifier: Apache-2.0
 ----------------------------------------------------------------------------- -->
 
 # score_qnx_sdp documentation
 
-`score_qnx_sdp` downloads the QNX Software Center CLI and uses it to install a QNX SDP, described by a patchset file, into a Bazel-managed directory.
+Consumers and contributors can use this index to find setup, usage, reference,
+maintenance, and troubleshooting information for `score_qnx_sdp`, which
+installs the QNX Software Development Platform (SDP). These documents cover the
+Bazel module; they do not explain QNX SDP internals or configure the S-CORE
+C/C++ toolchain.
 
-## Documents
+The following documents cover each task:
 
 | Document | Audience | Content |
 | --- | --- | --- |
-| [license-and-credentials.md](license-and-credentials.md) | everyone | QNX account, free license, `~/.netrc`, environment variables, license file for the toolchain |
-| [user-guide.md](user-guide.md) | consumers | Adding the module, defining `qnx_sdp` targets, using the output, proxy, custom patchsets |
-| [reference.md](reference.md) | everyone | `qnx_sdp` attributes, generated BUILD targets, repository rule, wrapper, credential helper |
-| [developer-guide.md](developer-guide.md) | contributors | Repository layout, how the build works, local builds, CI, updating the installer or patchsets, security |
-| [troubleshooting.md](troubleshooting.md) | everyone | Symptom, cause and fix tables, split by audience |
+| [license-and-credentials.md](license-and-credentials.md) | Consumers and developers | Set up a QNX account, license, `~/.netrc`, environment variables, and a license file for the toolchain. |
+| [user-guide.md](user-guide.md) | Consumers | Add the module, define `qnx_sdp` targets, use the output, configure a proxy, and provide custom patchsets. |
+| [reference.md](reference.md) | Consumers and developers | Look up `qnx_sdp` attributes, generated BUILD targets, the repository rule, the wrapper, and the credential helper. |
+| [developer-guide.md](developer-guide.md) | Contributors | Explore the repository, build and format it, use CI, update the installer or patchsets, and review security notes. |
+| [troubleshooting.md](troubleshooting.md) | Consumers and developers | Diagnose common symptoms, causes, and fixes. |
 
-## Which path are you on?
+Choose a path based on your task:
 
-- **Consumer**: [license-and-credentials.md](license-and-credentials.md), then [user-guide.md](user-guide.md).
-- **Developer**: the consumer path first, then [developer-guide.md](developer-guide.md).
+- **Consumer:** Start with [license and credentials](license-and-credentials.md),
+  then follow the [user guide](user-guide.md).
+- **Developer:** Start with the consumer path, then read the
+  [developer guide](developer-guide.md).
 
-## Facts at a glance
+The module has these characteristics:
 
-- Module name: `score_qnx_sdp` (see [MODULE.bazel](../MODULE.bazel)). Dependencies: `rules_pkg`, `rules_python`.
-- Public API: the `qnx_sdp` rule in `@score_qnx_sdp//rules:qnx_sdp.bzl`.
-- Internal: the `@qnx_softwarecentercli` repository, declared by the module itself. Consumers do not declare it.
-- Supported SDPs: 8.0.5 (default) and 8.0.6, with patchsets in [patchsets/](../patchsets).
-- Host: Linux x86_64. Network access to `qnx.com` is required at fetch and build time.
+- Module name: `score_qnx_sdp` (see [MODULE.bazel](../MODULE.bazel)).
+  Dependencies: `rules_pkg` and `rules_python`.
+- Public application programming interface (API): the `qnx_sdp` rule in
+  [`rules/qnx_sdp.bzl`](../rules/qnx_sdp.bzl).
+- Internal repository: `@qnx_softwarecentercli`, declared by the module.
+  Consumers do not declare it.
+- Supported SDP versions: 8.0.5 (default) and 8.0.6, with patchsets in
+  [`patchsets/`](../patchsets).
+- Host platform: Linux x86_64. Fetching and building require network access to
+  `qnx.com`.
 - License: Apache-2.0.
